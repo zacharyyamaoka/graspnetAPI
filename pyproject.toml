@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "graspnetAPI"
+version = "1.2.11"
+description = "GraspNet API"
+authors = [
+  {name = "Hao-Shu Fang"},
+  {name = "Chenxi Wang"},
+  {name = "Minghao Gou", email = "gouminghao@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+urls = {Homepage = "https://graspnet.net"}
+
+dependencies = [
+  "numpy",
+  "scipy",
+  "transforms3d",
+  "open3d",
+  "trimesh",
+  "tqdm",
+  "Pillow",
+  "opencv-python",
+  "matplotlib",
+  "pywavefront",
+  "scikit-image",
+  "autolab-core",         # ⚠️ confirm PyPI availability
+  "autolab-perception",   # ⚠️ confirm PyPI availability
+  "cvxopt",
+  "dill",
+  "h5py",
+  "scikit-learn",
+  "grasp-nms"             # ⚠️ confirm PyPI availability
+]
+
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["graspnetAPI"]

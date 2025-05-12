@@ -11,3 +11,4 @@
 /graspnms/build/
 *.npy
 /graspnms/grasp_nms.cpp
+.venv/
