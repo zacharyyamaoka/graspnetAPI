@@ -9,14 +9,16 @@ from graspnetAPI import GraspNet
 if __name__ == '__main__':
 
     ####################################################################
-    graspnet_root = '/home/gmh/graspnet'  ### ROOT PATH FOR GRASPNET ###
+    graspnet_root = '/home/bam/graspnetAPI/graspnet'  ### ROOT PATH FOR GRASPNET ###
     ####################################################################
 
-    g = GraspNet(graspnet_root, 'kinect', 'all')
-    if g.checkDataCompleteness():
-        print('Check for kinect passed')
+    # g = GraspNet(graspnet_root, 'kinect', 'all')
+    # if g.checkDataCompleteness():
+    #     print('Check for kinect passed')
 
 
-    g = GraspNet(graspnet_root, 'realsense', 'all')
+    # g = GraspNet(graspnet_root, 'realsense', 'all')
+    g = GraspNet(graspnet_root, 'realsense', 'train')
+
     if g.checkDataCompleteness():
         print('Check for realsense passed')

@@ -5,7 +5,7 @@ __version__ = '1.0'
 # change the graspnet_root path
 
 ####################################################################
-graspnet_root = '/home/gmh/graspnet' # ROOT PATH FOR GRASPNET
+graspnet_root = '/home/bam/graspnetAPI/graspnet' # ROOT PATH FOR GRASPNET
 ####################################################################
 
 sceneId = 1

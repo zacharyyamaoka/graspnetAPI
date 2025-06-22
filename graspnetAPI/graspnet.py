@@ -398,7 +398,21 @@ class GraspNet():
         - numpy array of the depth with dtype = np.uint16
         '''
         return cv2.imread(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, camera, 'depth', '%04d.png' % annId), cv2.IMREAD_UNCHANGED)
- 
+    
+    def loadCameraK(self, sceneId, camera, annId):
+        intrinsics = np.load(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, camera, 'camK.npy'))
+        # fx, fy = intrinsics[0,0], intrinsics[1,1]
+        # cx, cy = intrinsics[0,2], intrinsics[1,2]
+
+        # K = intrinsics.flatten().tolist()
+        # K = camera_info.k
+        # cx = K[2]
+        # cy = K[5]
+        # fx = K[0]
+        # fy = K[4]
+
+        return intrinsics
+    
     def loadMask(self, sceneId, camera, annId):
         '''
         **Input:**

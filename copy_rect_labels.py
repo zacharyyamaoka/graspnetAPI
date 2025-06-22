@@ -2,10 +2,10 @@ import os
 from tqdm import tqdm
 
 ### change the root to you path #### 
-graspnet_root = '/home/gmh/graspnet'
+graspnet_root = '/home/bam/graspnetAPI/graspnet'
 
 ### change the root to the folder contains rectangle grasp labels ###
-rect_labels_root = 'rect_labels'
+rect_labels_root = '/home/bam/graspnetAPI/graspnet/rect_labels'
 
 for sceneId in tqdm(range(190), 'Copying Rectangle Grasp Labels'):
     for camera in ['kinect', 'realsense']:

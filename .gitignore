@@ -12,3 +12,4 @@
 *.npy
 /graspnms/grasp_nms.cpp
 .venv/
+graspnet/

@@ -13,7 +13,7 @@ sceneId = 5
 annId = 3
 
 ####################################################################
-graspnet_root = '/home/gmh/graspnet' # ROOT PATH FOR GRASPNET
+graspnet_root = '/home/bam/graspnetAPI/graspnet' # ROOT PATH FOR GRASPNET
 ####################################################################
 
 g = GraspNet(graspnet_root, camera = camera, split = 'all')
