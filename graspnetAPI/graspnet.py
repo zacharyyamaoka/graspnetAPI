@@ -413,6 +413,35 @@ class GraspNet():
 
         return intrinsics
     
+    def loadCameraPose(self, sceneId, camera, annId):
+        """
+        Table is a flat plane in the camera frame
+        camera_pose of annId is identify
+
+        From the Docs:
+        
+        |   |   `-- camera_poses.npy            # 256 camera poses with respect to the first frame, shape: 256x(4x4)
+        |   |   `-- cam0_wrt_table.npy          # first frame's camera pose with respect to the table, shape: 4x4
+            
+        camera_poses[0] = [[ 1.  0. -0.  0.]
+                           [-0.  1.  0. -0.]
+                           [ 0. -0.  1. -0.]
+                           [ 0.  0.  0.  1.]]
+
+        cam0_wrt_table = [[ 0.99925415  0.03416702 -0.01799314 -0.06077267]
+                          [ 0.02872165 -0.96907261 -0.24509866 -0.04276322]
+                          [-0.02581095  0.24439906 -0.96933116  0.47765159]
+                          [ 0.          0.          0.          1.        ]]
+        """
+
+        camera_poses = np.load(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, camera, 'camera_poses.npy'))
+        camera_pose = camera_poses[annId]
+        print(np.round(camera_pose,3))
+        align_mat = np.load(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, camera, 'cam0_wrt_table.npy'))
+        camera_pose = align_mat.dot(camera_pose)
+
+        return camera_pose
+    
     def loadMask(self, sceneId, camera, annId):
         '''
         **Input:**

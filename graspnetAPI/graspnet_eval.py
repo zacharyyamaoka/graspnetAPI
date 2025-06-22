@@ -27,7 +27,14 @@ class GraspNetEval(GraspNet):
     '''
     def __init__(self, root, camera, split = 'test'):
         super(GraspNetEval, self).__init__(root, camera, split)
-        
+        # Add cache for scene models and sampled points
+        self._scene_cache = {
+            'scene_id': None,
+            'model_list': None,
+            'dexmodel_list': None,
+            'model_sampled_list': None
+        }
+
     def get_scene_models(self, scene_id, ann_id):
         '''
             return models in model coordinate
@@ -92,6 +99,30 @@ class GraspNetEval(GraspNet):
         return obj_list, pose_list, camera_pose, align_mat
         
     def eval_scene(self, scene_id, dump_folder, TOP_K = 50, return_list = False,vis = False, max_width = 0.1):
+        """ 
+        For backward compatibility, eval all 256 annotations as described here 
+        https://graspnetapi.readthedocs.io/en/latest/example_eval.html
+
+        The only disadvantage i see is having to loop through twice, and loading all the grasps into memory...
+        - ok I can have an option to pass in paths that you then load
+        """
+
+        ann_id_list = []
+        grasp_group_list = []
+        for ann_id in range(256):
+            grasp_path = os.path.join(dump_folder,get_scene_name(scene_id), self.camera, '%04d.npy' % (ann_id,))
+            if not os.path.exists(grasp_path):
+                continue
+            ann_id_list.append(ann_id)
+            grasp_group_list.append(grasp_path)
+
+        print(f"Loaded: {len(ann_id_list)} Skipped: {256 - len(ann_id_list)} annotations for scene {scene_id}")
+
+        self._eval_scene(scene_id, ann_id_list, grasp_group_list, TOP_K, return_list, vis, max_width)
+
+            
+
+    def _eval_scene(self, scene_id, ann_id_list, grasp_group_list, TOP_K = 50, return_list = False, vis = False, max_width = 0.1, use_cache = True):
         '''
         **Input:**
 
@@ -111,25 +142,62 @@ class GraspNetEval(GraspNet):
 
         - scene_accuracy: np.array of shape (256, 50, 6) of the accuracy tensor.
         '''
+
+        def timer(msg, enabled=True):
+            if not hasattr(timer, "last"):
+                timer.last = time.time()
+            now = time.time()
+            if enabled:
+                print(f"[TIMER] {msg}: {now - timer.last:.3f}s")
+            timer.last = now
+
+        timer("[Start] Set Up")
+
+        assert len(ann_id_list) == len(grasp_group_list), 'ann_id_list and grasp_group_list must have the same length'
+        assert len(ann_id_list) <= 256, 'Only 256 annotations per scene'
+
         config = get_config()
         table = create_table_points(1.0, 1.0, 0.05, dx=-0.5, dy=-0.5, dz=-0.05, grid_size=0.008)
-        
         list_coe_of_friction = [0.2,0.4,0.6,0.8,1.0,1.2]
 
-        model_list, dexmodel_list, _ = self.get_scene_models(scene_id, ann_id=0)
-
-        model_sampled_list = list()
-        for model in model_list:
-            model_sampled = voxel_sample_points(model, 0.008)
-            model_sampled_list.append(model_sampled)
+        # --- Caching logic for scene models ---
+        cache = self._scene_cache
+        if use_cache and cache['scene_id'] == scene_id and cache['model_list'] is not None:
+            model_list = cache['model_list']
+            dexmodel_list = cache['dexmodel_list']
+            model_sampled_list = cache['model_sampled_list']
+            timer("[CACHE] Using cached scene models")
+        else:
+            timer("[Start] get_scene_models")
+            model_list, dexmodel_list, _ = self.get_scene_models(scene_id, ann_id=0)
+            timer("[DONE] get_scene_models")
+            timer("[Start] voxel_sample_points")
+            model_sampled_list = []
+            for model in model_list:
+                model_sampled = voxel_sample_points(model, 0.008)
+                model_sampled_list.append(model_sampled)
+            timer("[DONE] voxel_sample_points")
+            # Update cache
+            cache['scene_id'] = scene_id
+            cache['model_list'] = model_list
+            cache['dexmodel_list'] = dexmodel_list
+            cache['model_sampled_list'] = model_sampled_list
 
         scene_accuracy = []
         grasp_list_list = []
         score_list_list = []
         collision_list_list = []
 
-        for ann_id in range(256):
-            grasp_group = GraspGroup().from_npy(os.path.join(dump_folder,get_scene_name(scene_id), self.camera, '%04d.npy' % (ann_id,)))
+        timer("[DONE] Set Up")
+        # Old Way
+        # for ann_id in range(256):
+        #     grasp_group = GraspGroup().from_npy(os.path.join(dump_folder,get_scene_name(scene_id), self.camera, '%04d.npy' % (ann_id,)))
+        for ann_id, grasp_group in zip(ann_id_list, grasp_group_list):
+            timer("[Start] Loop ann_id {}".format(ann_id))
+
+            if isinstance(grasp_group, str):
+                grasp_group = GraspGroup().from_npy(grasp_group)
+
             _, pose_list, camera_pose, align_mat = self.get_model_poses(scene_id, ann_id)
             table_trans = transform_points(table, np.linalg.inv(np.matmul(align_mat, camera_pose)))
 
@@ -198,6 +266,9 @@ class GraspNetEval(GraspNet):
 
             print('\rMean Accuracy for scene:%04d ann:%04d = %.3f' % (scene_id, ann_id, 100.0 * np.mean(grasp_accuracy[:,:])), end='', flush=True)
             scene_accuracy.append(grasp_accuracy)
+
+            timer("[DONE] Loop ann_id {}".format(ann_id))
+
         if not return_list:
             return scene_accuracy
         else:

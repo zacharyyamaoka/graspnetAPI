@@ -33,6 +33,15 @@ cd graspnetAPI
 pip install .
 ```
 
+How to clear jupyter notebook
+
+In vscode select python interperter
+run script to open terminal
+
+```bash
+python -m pip install nbstripout
+nbstripout --install
+```
 
 ## Change Log
 
