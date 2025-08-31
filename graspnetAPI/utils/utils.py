@@ -450,7 +450,7 @@ def plot_axis(R,center,length,grid_size = 0.01):
     cloud.points = o3d.utility.Vector3dVector(p)
     return cloud
 
-def plot_gripper_pro_max(center, R, width, depth, score=1, color=None):
+def plot_gripper_pro_max(center, R, width, depth, score=1, color=None, height=0.004, finger_width=0.004, tail_length=0.04, depth_base=0.02, use_defaults=True, use_collision=False):
     '''
     Author: chenxi-wang
     
@@ -469,11 +469,20 @@ def plot_gripper_pro_max(center, R, width, depth, score=1, color=None):
     - open3d.geometry.TriangleMesh
     '''
     x, y, z = center
-    height=0.004
-    finger_width = 0.004
-    tail_length = 0.04
-    depth_base = 0.02
-    
+
+    if use_defaults:
+        # width is grasp_width
+        # depth is finger_height
+        height=0.004 # front to back, what we call finger_width
+        finger_width = 0.004 #inside surface to outside surface, what we call finger_thickness
+        depth_base = 0.02# from the center of gripper to base (default 2cm)
+        tail_length = 0.04 # the handle of the fork
+        
+    if use_collision:
+        height = 0.02 
+        finger_width = 0.01 
+        depth_base = 0.02 
+
     if color is not None:
         color_r, color_g, color_b = color
     else:
@@ -805,3 +814,26 @@ def batch_key_point_2_rotation(centers_xyz, open_points_xyz, upper_points_xyz):
     x_axis = np.hstack((np.zeros((num, 1)), np.zeros((num, 1)), np.ones((num, 1)))).astype(np.float32).reshape(-1, 3, 1)
     rotations = np.dstack((x_axis, unit_open_points_vector.reshape((-1, 3, 1)), unit_upper_points_vector.reshape((-1, 3, 1))))
     return rotations
+
+import time
+
+class Timer:
+    def __init__(self, verbose=True):
+        self.verbose = verbose
+        self.start_times = {}
+
+    def start(self, label="default"):
+        now = time.time()
+        self.start_times[label] = now
+        if self.verbose:
+            print(f"[START] {label}")
+
+    def stop(self, label="default"):
+        now = time.time()
+        if label not in self.start_times:
+            raise ValueError(f"No start time recorded for label '{label}'")
+        elapsed = now - self.start_times[label]
+        if self.verbose:
+            print(f"[STOP] {label}: {elapsed:.3f}s")
+        del self.start_times[label]  # Optional: remove the label after stopping
+        return elapsed

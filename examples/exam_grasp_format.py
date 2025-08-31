@@ -69,7 +69,7 @@ g = Grasp() # simple Grasp
 frame = o3d.geometry.TriangleMesh.create_coordinate_frame(0.1)
 
 # Grasp before transformation
-o3d.visualization.draw_geometries([g.to_open3d_geometry(), frame])
+o3d.visualization.draw_geometries([*g.to_open3d_geometry(), frame])
 g.translation = np.array((0,0,0.01))
 
 # setup a transformation matrix
@@ -79,7 +79,7 @@ T[:3,:3] = np.array([[0,0,1.0],[1,0,0],[0,1,0]])
 g.transform(T)
 
 # Grasp after transformation
-o3d.visualization.draw_geometries([g.to_open3d_geometry(), frame])
+o3d.visualization.draw_geometries([*g.to_open3d_geometry(), frame])
 
 g1 = Grasp()
 gg = GraspGroup()

@@ -24,7 +24,7 @@ print('6d grasp:\n{}'.format(_6d_grasp))
 # visualize the grasps using open3d
 geometries = []
 geometries.append(g.loadScenePointCloud(sceneId = sceneId, annId = annId, camera = 'realsense'))
-geometries += _6d_grasp.random_sample(numGrasp = 20).to_open3d_geometry_list()
+geometries += _6d_grasp.random_sample(numGrasp = 20).to_open3d_geometry_list(show_frame=True)
 o3d.visualization.draw_geometries(geometries)
 
 # # load rectangle grasps of scene 1 with annotation id = 3, camera = realsense and fric_coef_thresh = 0.2

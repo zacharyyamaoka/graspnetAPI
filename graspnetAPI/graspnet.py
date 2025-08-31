@@ -54,9 +54,10 @@ from tqdm import tqdm
 import open3d as o3d
 import cv2
 import trimesh
+import time
 
 from .grasp import Grasp, GraspGroup, RectGrasp, RectGraspGroup, RECT_GRASP_ARRAY_LEN
-from .utils.utils import transform_points, parse_posevector
+from .utils.utils import transform_points, parse_posevector, Timer
 from .utils.xmlhandler import xmlReader
 
 TOTAL_SCENE_NUM = 190
@@ -65,7 +66,9 @@ GRASP_HEIGHT = 0.02
 def _isArrayLike(obj):
     return hasattr(obj, '__iter__') and hasattr(obj, '__len__')
 
+TIMER = Timer(verbose=True)
 
+    
 class GraspNet():
     def __init__(self, root, camera='kinect', split='train', sceneIds=[]):
         '''
@@ -399,7 +402,7 @@ class GraspNet():
         '''
         return cv2.imread(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, camera, 'depth', '%04d.png' % annId), cv2.IMREAD_UNCHANGED)
     
-    def loadCameraK(self, sceneId, camera, annId):
+    def loadCameraK(self, sceneId, camera):
         intrinsics = np.load(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, camera, 'camK.npy'))
         # fx, fy = intrinsics[0,0], intrinsics[1,1]
         # cx, cy = intrinsics[0,2], intrinsics[1,2]
@@ -415,11 +418,12 @@ class GraspNet():
     
     def loadCameraPose(self, sceneId, camera, annId):
         """
+        Returns the pose of the camera with respect to the table
         Table is a flat plane in the camera frame
         camera_pose of annId is identify
 
         From the Docs:
-        
+
         |   |   `-- camera_poses.npy            # 256 camera poses with respect to the first frame, shape: 256x(4x4)
         |   |   `-- cam0_wrt_table.npy          # first frame's camera pose with respect to the table, shape: 4x4
             
@@ -435,12 +439,11 @@ class GraspNet():
         """
 
         camera_poses = np.load(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, camera, 'camera_poses.npy'))
-        camera_pose = camera_poses[annId]
-        print(np.round(camera_pose,3))
-        align_mat = np.load(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, camera, 'cam0_wrt_table.npy'))
-        camera_pose = align_mat.dot(camera_pose)
-
-        return camera_pose
+        T_camera0_cameraId = camera_poses[annId]
+        # print(np.round(camera_pose,3))
+        T_table_camera0 = np.load(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, camera, 'cam0_wrt_table.npy'))
+        T_table_cameraId = T_table_camera0.dot(T_camera0_cameraId)
+        return T_table_cameraId
     
     def loadMask(self, sceneId, camera, annId):
         '''
@@ -670,6 +673,11 @@ class GraspNet():
                 collision = collision_dump[i]
                 point_inds = np.arange(sampled_points.shape[0])
 
+                # print("sampled_points:", sampled_points.shape)
+                # print("offsets:", offsets.shape)
+                # print("fric_coefs:", fric_coefs.shape)
+                # print("collision:", collision.shape)
+
                 num_points = len(point_inds)
                 target_points = sampled_points[:, np.newaxis, np.newaxis, np.newaxis, :]
                 target_points = np.tile(target_points, [1, num_views, num_angles, num_depths, 1])
@@ -679,6 +687,10 @@ class GraspNet():
                 widths = offsets[:, :, :, :, 2]
 
                 mask1 = ((fric_coefs <= fric_coef_thresh) & (fric_coefs > 0) & ~collision)
+                # print("mask1: ", mask1.shape)
+                # print("Before filtering:", fric_coefs.size)
+                # print("In collision:", np.sum(collision))
+                # print("After filtering:", np.sum(mask1))
                 target_points = target_points[mask1]
                 target_points = transform_points(target_points, trans)
                 target_points = transform_points(target_points, np.linalg.inv(camera_pose))

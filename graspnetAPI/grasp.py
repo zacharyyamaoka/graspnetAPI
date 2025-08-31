@@ -4,6 +4,7 @@ import numpy as np
 import open3d as o3d
 import copy
 import cv2
+from transforms3d.euler import euler2mat
 
 from .utils.utils import plot_gripper_pro_max, batch_rgbdxyz_2_rgbxy_depth, get_batch_key_points, batch_key_points_2_tuple, framexy_depth_2_xyz, batch_framexy_depth_2_xyz, center_depth, key_point_2_rotation, batch_center_depth, batch_framexy_depth_2_xyz, batch_key_point_2_rotation
 
@@ -34,6 +35,10 @@ class Grasp():
             self.grasp_array = np.concatenate([np.array((score, width, height, depth)),rotation_matrix.reshape(-1), translation, np.array((object_id)).reshape(-1)]).astype(np.float64)
         else:
             raise ValueError('only 1 or 7 arguments are accepted')
+        
+        # BE INCREDIBLY CAREFUL! These values do not get copied around usally...
+        self.finger_width_aka_thickness = 0.01
+        self.color = None
     
     def __repr__(self):
         return 'Grasp: score:{}, width:{}, height:{}, depth:{}, translation:{}\nrotation:\n{}\nobject id:{}'.format(self.score, self.width, self.height, self.depth, self.translation, self.rotation_matrix, self.object_id)
@@ -189,8 +194,60 @@ class Grasp():
         self.translation = np.dot(rotation, self.translation.reshape((3,1))).reshape(-1) + translation
         self.rotation_matrix = np.dot(rotation, self.rotation_matrix)
         return self
+    
+    @property
+    def transform_matrix(self):
+        T = np.eye(4)
+        T[:3,:3] = self.rotation_matrix
+        T[:3,3] = self.translation
+        return T
+    
+    @property
+    def T_graspnet_tcp(self,):
+        """ TCP frame is at finger tips, z pointing towards table"""
+        T_graspnet_tcp = np.eye(4)
+        T_graspnet_tcp[:3, :3] = euler2mat(-np.pi/2, 0, -np.pi/2)
+        T_graspnet_tcp[:3, 3] = np.array([self.depth, 0, 0]) #x axis is in z direction, depth already has -0.02 applied
+        return T_graspnet_tcp
+    
+    @property
+    def T_tcp_graspnet(self):
+        """ TCP frame is at finger tips, z pointing towards table"""
+        T_tcp_graspnet = np.eye(4)
+        T_tcp_graspnet[:3, :3] = euler2mat(np.pi/2, -np.pi/2, 0)
+        T_tcp_graspnet[:3, 3] = np.array([0, 0, -(self.depth)]) #x axis is in z direction, depth already has -0.02 applied
+        return T_tcp_graspnet
+    
+    # You can find the inverse using
+    # from transforms3d.euler import euler2mat, mat2euler
+    # T_tool_tcp = np.linalg.inv(T_graspnet_tcp)
+    # print(np.round(T_tool_tcp,3))
+    # print(mat2euler(T_tool_tcp[:3, :3], axes='sxyz'))
 
-    def to_open3d_geometry(self, color=None):
+
+    @property
+    def tcp_frame(self):
+        """ TCP frame is at finger tips, z pointing towards table"""
+
+
+        T_world_graspnet = self.transform_matrix
+        T_world_tcp = T_world_graspnet @ self.T_graspnet_tcp
+        return T_world_tcp
+
+    # BAD DESIGN, don't support mutating to different frame
+    # def to_tcp_frame(self, mutate=False):
+
+    #     if mutate:
+    #         tcp_grasp = self
+    #     else:
+    #         tcp_grasp = copy.deepcopy(self)
+
+    #     tcp_grasp.translation = self.tcp_frame[:3, 3]
+    #     tcp_grasp.rotation_matrix = self.tcp_frame[:3, :3]
+    #     return tcp_grasp
+
+
+    def to_open3d_geometry(self, color=None, use_defaults= True, use_collision = False, show_frame = False):
         '''
         **Input:**
 
@@ -200,7 +257,45 @@ class Grasp():
 
         - list of open3d.geometry.Geometry of the gripper.
         '''
-        return plot_gripper_pro_max(self.translation, self.rotation_matrix, self.width, self.depth, score = self.score, color = color)
+
+        # BE SUPER CAREFUL! self.color and self.finger_width_aka_thickness are not copied in the array...
+        # Override with default color if funtion color is not set
+        if color == None and self.color != None:
+            color = self.color
+
+        geometry = []
+
+        # Create a 4x4 identity (eye) matrix and populate with translation and rotation
+
+
+        if show_frame:
+            graspnet_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.03)
+            graspnet_frame.transform(self.transform_matrix)
+            geometry.append(graspnet_frame)
+
+            tcp_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.03)
+            tcp_frame.transform(self.tcp_frame)
+            geometry.append(tcp_frame)
+
+        gripper_mesh = plot_gripper_pro_max(
+            self.translation,
+            self.rotation_matrix,
+            self.width, # grasp width
+            self.depth, # finger height - measured from center to finger tip
+            score = self.score,
+            color = color,
+            height = self.height, # what we call finger_width, measured from front surface to back surface
+            finger_width = self.finger_width_aka_thickness, # what we call finger_thickness, measured from inside to outside surface
+            tail_length = 0.04, # length of fork handle
+            depth_base = 0.02, # measured from center to palm surface, by default is 2cm but we shall set to zero! (update, keep at 2cm and account for it externally)
+            use_defaults = use_defaults, # if True, use default values for height, finger_width, tail_length and depth_base
+            use_collision = use_collision,
+            )
+        
+        geometry.append(gripper_mesh)
+        return geometry
+                                    
+
 
 class GraspGroup():
     def __init__(self, *args):
@@ -456,16 +551,23 @@ class GraspGroup():
         '''
         np.save(npy_file_path, self.grasp_group_array)
 
-    def to_open3d_geometry_list(self):
+    def to_open3d_geometry_list(self, color_list=None, use_defaults = True, use_collision=False, show_frame=False):
         '''
         **Output:**
 
         - list of open3d.geometry.Geometry of the grippers.
         '''
+        if color_list is not None:
+            assert len(color_list) == len(self.grasp_group_array), 'color_list must have the same length as the grasp group array'
+
         geometry = []
         for i in range(len(self.grasp_group_array)):
             g = Grasp(self.grasp_group_array[i])
-            geometry.append(g.to_open3d_geometry())
+            color = None
+            if color_list is not None:
+                color = color_list[i]
+            geometry.extend(g.to_open3d_geometry(color, use_defaults=use_defaults, use_collision=use_collision, show_frame=show_frame))
+
         return geometry
     
     def sort_by_score(self, reverse = False):

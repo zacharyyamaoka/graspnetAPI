@@ -36,7 +36,7 @@ grasp = rect_grasp.to_grasp(camera, depth)
 if grasp is not None:
     geometry = []
     geometry.append(g.loadScenePointCloud(sceneId, camera, annId))
-    geometry.append(grasp.to_open3d_geometry())
+    geometry.extend(grasp.to_open3d_geometry())
     o3d.visualization.draw_geometries(geometry)
 else:
     print('No result because the depth is invalid, please try again!')
